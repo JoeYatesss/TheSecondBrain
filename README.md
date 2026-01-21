@@ -124,6 +124,20 @@ src/
     ├── streaming.py     # Stream handling utilities
     └── retry.py         # Retry logic with backoff
 ```
+
+**Key Concepts:**
+```python
+# Exponential backoff example
+async def call_with_retry(func, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return await func()
+        except RateLimitError:
+            wait = (2 ** attempt) + random.uniform(0, 1)
+            await asyncio.sleep(wait)
+    raise MaxRetriesExceeded()
+```
+
 ---
 
 ### Phase 2: Prompt Engineering & Memory
@@ -152,6 +166,28 @@ src/
     ├── tokens.py        # Token counting utilities
     └── costs.py         # Cost tracking
 ```
+
+**Key Concepts:**
+```python
+# Structured output with Pydantic
+from pydantic import BaseModel
+
+class ChatResponse(BaseModel):
+    answer: str
+    confidence: float
+    follow_up_questions: list[str]
+    tokens_used: int
+    estimated_cost: float
+
+# Force LLM to return structured data
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    messages=[...],
+    response_format={"type": "json_object"}
+)
+parsed = ChatResponse.model_validate_json(response.content)
+```
+
 ---
 
 ### Phase 3: Document Ingestion & Chunking
@@ -182,6 +218,17 @@ src/
     ├── recursive.py     # Recursive text splitter
     └── semantic.py      # Semantic chunking
 ```
+
+**Key Concepts:**
+```python
+# Batch processing with async
+async def ingest_documents(file_paths: list[str], batch_size: int = 10):
+    for batch in chunked(file_paths, batch_size):
+        tasks = [process_document(path) for path in batch]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        yield results
+```
+
 ---
 
 ### Phase 4: Embeddings & Vector Database
@@ -209,6 +256,24 @@ src/
     ├── chroma.py        # Chroma implementation
     └── pinecone.py      # Pinecone implementation
 ```
+
+**Key Concepts:**
+```python
+# Embedding with metadata
+def embed_and_store(chunks: list[Chunk]):
+    embeddings = embedding_model.encode([c.text for c in chunks])
+    
+    vectorstore.upsert(
+        ids=[c.id for c in chunks],
+        embeddings=embeddings,
+        metadatas=[{
+            "source": c.source,
+            "page": c.page,
+            "timestamp": c.created_at
+        } for c in chunks]
+    )
+```
+
 ---
 
 ### Phase 5: RAG Pipeline
@@ -241,6 +306,32 @@ src/
 └── prompts/
     └── rag.py           # RAG-specific prompts
 ```
+
+**Key Concepts:**
+```python
+# Guardrails pipeline
+class RAGPipeline:
+    async def query(self, user_input: str) -> RAGResponse:
+        # Input guardrails
+        if self.pii_detector.contains_pii(user_input):
+            user_input = self.pii_detector.redact(user_input)
+        
+        if self.injection_detector.is_suspicious(user_input):
+            return RAGResponse(
+                answer="I can't process that request.",
+                blocked=True
+            )
+        
+        # Core RAG
+        docs = await self.retriever.search(user_input)
+        response = await self.generator.generate(user_input, docs)
+        
+        # Output guardrails
+        response = self.output_validator.validate(response)
+        
+        return response
+```
+
 ---
 
 ### Phase 6: Agents & Tools with LangGraph
@@ -274,6 +365,36 @@ src/
     ├── code.py          # Code execution
     └── notes.py         # Note taking
 ```
+
+**Key Concepts:**
+```python
+# Intent classification for routing
+class IntentClassifier:
+    INTENTS = ["simple_qa", "rag_search", "agent_task", "clarification"]
+    
+    def classify(self, query: str) -> Intent:
+        # Use small model for fast classification
+        response = client.messages.create(
+            model="claude-haiku",
+            messages=[{
+                "role": "user",
+                "content": f"Classify this query: {query}"
+            }],
+            tools=[classification_tool]
+        )
+        return Intent(response.tool_calls[0].result)
+
+# Router
+def route_query(query: str, intent: Intent):
+    match intent:
+        case Intent.SIMPLE_QA:
+            return simple_llm_call(query)
+        case Intent.RAG_SEARCH:
+            return rag_pipeline.query(query)
+        case Intent.AGENT_TASK:
+            return agent.run(query)
+```
+
 ---
 
 ### Phase 7: Advanced Retrieval & Evaluation
@@ -312,6 +433,67 @@ src/
 │   └── runner.py        # Evaluation runner
 └── experiments/
     └── ab_testing.py    # A/B testing framework
+```
+
+**Key Concepts:**
+```python
+# Semantic caching
+class SemanticCache:
+    def __init__(self, threshold: float = 0.95):
+        self.threshold = threshold
+        self.vectorstore = Chroma(collection="cache")
+    
+    def get(self, query: str) -> Optional[CachedResponse]:
+        results = self.vectorstore.similarity_search(
+            query, 
+            k=1,
+            score_threshold=self.threshold
+        )
+        if results:
+            return CachedResponse.from_doc(results[0])
+        return None
+    
+    def set(self, query: str, response: str):
+        self.vectorstore.add(
+            texts=[query],
+            metadatas=[{"response": response, "timestamp": now()}]
+        )
+
+# Model routing based on complexity
+class ModelRouter:
+    def select_model(self, query: str, intent: Intent) -> str:
+        complexity = self.complexity_scorer.score(query)
+        
+        if complexity < 0.3:
+            return "claude-haiku"      # Fast, cheap
+        elif complexity < 0.7:
+            return "claude-sonnet"     # Balanced
+        else:
+            return "claude-opus"       # Maximum capability
+
+# LLM-as-judge
+class LLMJudge:
+    def evaluate_faithfulness(
+        self, 
+        question: str, 
+        context: str, 
+        answer: str
+    ) -> float:
+        prompt = f"""
+        Rate how faithful this answer is to the context (0-1).
+        Only consider if the answer is supported by the context.
+        
+        Context: {context}
+        Question: {question}
+        Answer: {answer}
+        
+        Return only a number between 0 and 1.
+        """
+        response = client.messages.create(
+            model="claude-sonnet",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return float(response.content[0].text)
 ```
 
 ---
@@ -664,6 +846,106 @@ pytest tests/evaluation
 # All tests with coverage
 pytest --cov=src tests/
 ```
+
+---
+
+## 🚀 What's Next
+
+After completing Second Brain, these follow-up projects will round out your AI engineering skills:
+
+---
+
+### Project 2: Code Agent
+*Fills gap: Code generation, tool use at scale, SWE-Bench patterns*
+
+Build an agent that can read a codebase, understand it, and make changes autonomously.
+
+**Skills you'll learn:**
+- AST parsing and code understanding
+- Git integration and diff generation
+- Test execution and validation
+- Multi-file editing strategies
+- Long context management for large codebases
+
+**Why it matters:** Code agents are the hottest area in AI right now (Cursor, Aider, Devin, Claude Code). Direct path to AI tooling roles.
+
+---
+
+### Project 3: Voice Assistant
+*Fills gap: Audio processing, real-time systems, streaming*
+
+A voice-to-voice assistant with interruption handling and natural conversation flow.
+
+**Skills you'll learn:**
+- Speech-to-text (Whisper, Deepgram)
+- Text-to-speech (ElevenLabs, Cartesia)
+- WebSocket communication
+- Voice activity detection
+- Real-time streaming and latency optimization
+- Interruption handling
+
+**Why it matters:** Voice interfaces are becoming standard. Combines real-time systems knowledge with AI.
+
+---
+
+### Project 4: Multi-Agent Research Team
+*Fills gap: Multi-agent orchestration, collaboration patterns*
+
+A team of specialized agents (researcher, writer, critic, editor) that collaborate to produce comprehensive reports.
+
+**Skills you'll learn:**
+- Multi-agent frameworks (CrewAI, AutoGen, LangGraph)
+- Agent communication protocols
+- Task decomposition and planning
+- Consensus and debate mechanisms
+- Quality control through agent critique
+
+**Why it matters:** Complex real-world tasks require multiple specialized agents working together.
+
+---
+
+### Project 5: Fine-Tune Your Own LLM
+*Fills gap: LLM training, LoRA/QLoRA, RLHF basics*
+
+Fine-tune a small open-source model (Llama 3, Mistral, Qwen) for a specific task or domain.
+
+**Skills you'll learn:**
+- LoRA and QLoRA techniques
+- Dataset curation and formatting
+- Training loops and hyperparameter tuning
+- Evaluation benchmarks
+- Model merging and quantization
+- DPO (Direct Preference Optimization) basics
+
+**Why it matters:** Understanding how models are trained makes you better at using them. Required for many ML roles.
+
+---
+
+### Areas Typically Learned On-The-Job
+
+These are valuable but usually learned at companies with scale:
+
+| Area | What It Covers |
+|------|----------------|
+| **GPU Infrastructure** | CUDA, multi-GPU training, Triton, TensorRT |
+| **Kubernetes for ML** | KubeFlow, Seldon, Ray, distributed training |
+| **Heavy MLOps** | Feature stores (Feast), data versioning (DVC), model registries |
+| **Image Generation** | Stable Diffusion, ComfyUI, ControlNet |
+| **Recommendation Systems** | Embedding-based recs, two-tower models |
+
+---
+
+### Learning Path Summary
+
+```
+Second Brain (this project)     → 60% of AI Engineering
++ Code Agent                    → 70%
++ Voice Assistant               → 77%
++ Multi-Agent System            → 84%
++ LLM Fine-tuning               → 90%
++ On-the-job experience         → 100%
+```
+
 ---
 
 <p align="center">
