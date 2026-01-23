@@ -806,7 +806,23 @@ python -m src.inference.local
 *This section documents key learnings from each phase.*
 
 ### Phase 1: Basic Chat API
-- *Coming soon...*
+1. Class vs instance confusion
+    - Mistake: Calling methods on the class itself: Client.get_api_key() or Client.responses.create()
+    - Fix: Create an instance first, then call methods on it: client = Client() then client.get_api_key() 
+2. Referencing self inside classes     
+    - Mistake: Using api_key instead of self.api_key, or get_api_key() instead of self.get_api_key()
+    - Fix: Inside a class, always use self. to access the instance's attributes and methods
+3. Calling vs referencing methods                 
+    - Mistake: self.get_api_key (just references the method) vs self.get_api_key() (actually calls it)
+    - Fix: Add () to call a method and get its result                       
+4. Calling instances like functions
+    - Mistake: chat(query) - trying to call a class instance like a function
+    - Fix: Call the method on the instance: chat.get_response(query)  
+
+- Reusable Client class that loads API key from env and creates OpenAI client once                                                                                        
+- Reusable Chat class where query is passed to the method, not the constructor                                                                                            
+- Retry logic with exponential backoff for rate limit errors                                                                                                              
+- Streaming response that prints as it arrives and returns the full text 
 
 ### Phase 2: Prompt Engineering & Memory
 - *Coming soon...*
