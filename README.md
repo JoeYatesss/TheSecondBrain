@@ -3,8 +3,6 @@
 > A personal knowledge assistant that ingests everything you learn and becomes an AI that "thinks like you."
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Agents-orange.svg)](https://langchain-ai.github.io/langgraph/)
 
 ---
 
