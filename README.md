@@ -38,7 +38,7 @@ This project is structured in 8 phases, each building on the previous:
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| [Phase 1](#phase-1-basic-chat-api) | Basic Chat API | 🔲 Not Started |
+| [Phase 1](#phase-1-basic-chat-api) | Basic Chat API | 🔲 Started |
 | [Phase 2](#phase-2-prompt-engineering--memory) | Prompt Engineering & Memory | 🔲 Not Started |
 | [Phase 3](#phase-3-document-ingestion--chunking) | Document Ingestion & Chunking | 🔲 Not Started |
 | [Phase 4](#phase-4-embeddings--vector-database) | Embeddings & Vector Database | 🔲 Not Started |
